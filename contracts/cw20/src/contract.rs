@@ -47,6 +47,29 @@ pub fn execute(
     }
 }
 
+
+#[allow(clippy::too_many_arguments)]
+pub fn update_config(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    owner: String,
+) -> StdResult<Response<TerraMsgWrapper>> {
+
+    //priv check
+    let mut config: Config = CONFIG.load(deps.storage)?;
+    if config.owner != info.sender{
+        return Err(StdError::generic_err("Unauthorized"));
+    }
+
+    //update config
+    config.owner = deps.api.addr_validate(&owner)?;
+
+    CONFIG.save(deps.storage, &config)?;
+
+    Ok(Response::new().add_attributes(vec![("action", "update_config")]))
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn execute_whitelist_cw20(
     deps: DepsMut,
