@@ -7,7 +7,7 @@ use cosmwasm_std::{
 
 use anchor_guardian::cw20::{ExecuteMsg, InstantiateMsg, QueryMsg, ConfigResponse};
 
-use crate::state::{CONFIG, BORROWERS, Config, Borrower};
+use crate::state::{CONFIG, STATE, BORROWERS, Config, State, Borrower};
 use terra_cosmwasm::TerraMsgWrapper;
 
 
@@ -36,7 +36,7 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> StdResult<Response<TerraMsgWrapper>> {
     match msg {
-        ExecuteMsg::WhitelistCw20{address} => Ok(Response::new()),
+        ExecuteMsg::WhitelistCw20{address} => execute_whitelist_cw20(deps, env, info, address),
         ExecuteMsg::UpdateConfig {owner} => Ok(Response::new()),
     
         //user funcs
@@ -48,21 +48,30 @@ pub fn execute(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn update_owner(
+pub fn execute_whitelist_cw20(
     deps: DepsMut,
+    env: Env,
     info: MessageInfo,
-    owner: String,
+    address: String,
 ) -> StdResult<Response<TerraMsgWrapper>> {
-    let api = deps.api;
-    let mut config: Config = CONFIG.load(deps.storage)?;
 
-    if config.owner != info.sender {
+    //priv check
+    let config: Config = CONFIG.load(deps.storage)?;
+    if config.owner != info.sender{
         return Err(StdError::generic_err("Unauthorized"));
     }
 
-    config.owner = deps.api.addr_validate(&owner)?;
+    //valid address
+    let cw20_address: Addr = deps.api.addr_validate(&address)?;
 
-    CONFIG.save(deps.storage, &config)?;
+    //check if address already whitelisted
+    let mut state: State = STATE.load(deps.storage)?;
+    let cw20_address_check = state.whitelisted_cw20s.iter().find(|&x| x == &cw20_address);
+
+    if cw20_address_check.is_none(){
+        state.whitelisted_cw20s.push(cw20_address);
+        STATE.save(deps.storage, &state);
+    }
 
     Ok(Response::new().add_attributes(vec![("action", "update_config")]))
 }

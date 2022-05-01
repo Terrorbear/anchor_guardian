@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use cw_storage_plus::{Item, Map};
 
 pub const BORROWERS: Map<Addr, Borrower> = Map::new("borrowers");
+pub const STATE: Item<State> = Item::new("\u{0}\u{6}config");
 pub const CONFIG: Item<Config> = Item::new("\u{0}\u{6}config");
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -12,6 +13,10 @@ pub struct Config {
     pub owner: Addr,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct State {
+    pub whitelisted_cw20s: Vec<Addr>,
+}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Borrower {
