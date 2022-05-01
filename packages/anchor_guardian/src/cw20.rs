@@ -19,15 +19,18 @@ pub enum ExecuteMsg {
     UpdateConfig {owner: String},
 
     //user funcs
-    ApproveAllowance { cw20_address: String, amount: Uint128, expiration: Expiration}
-
+    //give guardian contract spend allowance to dump/payoff anchor loan
+    AddGuardian { cw20_address: String, amount: Uint128},
+    
+    //liquidator funcs
+    LiquidateCollateral { address: String },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     Config {},
-    State {},
+    Guardians { address: String },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema)]
@@ -35,7 +38,3 @@ pub struct ConfigResponse {
     pub owner: String,
 }
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema)]
-pub struct StateResponse {
-    pub total: Uint128,
-}

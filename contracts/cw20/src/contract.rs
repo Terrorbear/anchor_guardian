@@ -2,14 +2,12 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     from_binary, to_binary, Binary, Decimal, Deps, DepsMut, Env,
-    MessageInfo, Response, StdError, StdResult, Uint128, 
+    MessageInfo, Response, StdError, StdResult, Uint128, Addr,
 };
 
-use anchor_guardian::cw20::{
-    ExecuteMsg, InstantiateMsg, QueryMsg, ConfigResponse, StateResponse
-};
+use anchor_guardian::cw20::{ExecuteMsg, InstantiateMsg, QueryMsg, ConfigResponse};
 
-use crate::state::{CONFIG, STATE, Config, State};
+use crate::state::{CONFIG, BORROWERS, Config, Borrower};
 use terra_cosmwasm::TerraMsgWrapper;
 
 
@@ -25,12 +23,7 @@ pub fn instantiate(
         owner: deps.api.addr_validate(&msg.owner)?,
     };
 
-    let state = State {
-        total: Uint128::zero(),
-    };
-
     CONFIG.save(deps.storage, &config)?;
-    STATE.save(deps.storage, &state)?;
 
     Ok(Response::default())
 }
@@ -47,7 +40,10 @@ pub fn execute(
         ExecuteMsg::UpdateConfig {owner} => Ok(Response::new()),
     
         //user funcs
-        ExecuteMsg::ApproveAllowance { cw20_address, amount, expiration} => Ok(Response::new()),
+        ExecuteMsg::AddGuardian { cw20_address, amount} => Ok(Response::new()),
+    
+        //liquidator funcs
+        ExecuteMsg::LiquidateCollateral { address } => Ok(Response::new()),
     }
 }
 
@@ -71,43 +67,12 @@ pub fn update_owner(
     Ok(Response::new().add_attributes(vec![("action", "update_config")]))
 }
 
-#[allow(clippy::too_many_arguments)]
-pub fn increment(
-    deps: DepsMut,
-    info: MessageInfo,
-) -> StdResult<Response<TerraMsgWrapper>> {
-    let api = deps.api;
-    let mut state: State = STATE.load(deps.storage)?;
-
-    state.total += Uint128::from(1u32);
-    
-    STATE.save(deps.storage, &state)?;
-
-    Ok(Response::new().add_attributes(vec![("action", "increment")]))
-}
-
-#[allow(clippy::too_many_arguments)]
-pub fn reset(
-    deps: DepsMut,
-    info: MessageInfo,
-    total: Uint128,
-) -> StdResult<Response<TerraMsgWrapper>> {
-    let api = deps.api;
-    let mut state: State = STATE.load(deps.storage)?;
-
-    state.total = total;
-    
-    STATE.save(deps.storage, &state)?;
-
-    Ok(Response::new().add_attributes(vec![("action", "reset")]))
-}
-
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => Ok(to_binary(&query_config(deps)?)?),
-        QueryMsg::State {} => Ok(to_binary(&query_state(deps)?)?),
+        QueryMsg::Guardians {address} => Ok(to_binary(&query_guardians(deps, address)?)?),
     }
 }
 
@@ -119,9 +84,7 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     })
   }
   
-  pub fn query_state(deps: Deps) -> StdResult<StateResponse> {
-    let state: State = STATE.load(deps.storage)?;
-    Ok(StateResponse {
-        total: state.total,
-    })
+  pub fn query_guardians(deps: Deps, address: String) -> StdResult<Borrower> {
+    let borrower: Borrower = BORROWERS.load(deps.storage, deps.api.addr_validate(&address)?)?;
+    Ok(borrower)
   }
