@@ -3,11 +3,12 @@ use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     from_binary, to_binary, Binary, Decimal, Deps, DepsMut, Env,
     MessageInfo, Response, StdError, StdResult, Uint128, Addr,
+    WasmMsg, CosmosMsg,
 };
 
 use anchor_guardian::cw20::{ExecuteMsg, InstantiateMsg, QueryMsg, ConfigResponse};
-
-use crate::state::{CONFIG, STATE, BORROWERS, Config, State, Borrower};
+use cw20::{Cw20ExecuteMsg, Expiration};
+use crate::state::{CONFIG, STATE, BORROWERS, Config, State, Borrower, Guardian};
 use terra_cosmwasm::TerraMsgWrapper;
 
 
@@ -37,7 +38,7 @@ pub fn execute(
 ) -> StdResult<Response<TerraMsgWrapper>> {
     match msg {
         ExecuteMsg::WhitelistCw20{address} => execute_whitelist_cw20(deps, env, info, address),
-        ExecuteMsg::UpdateConfig {owner} => Ok(Response::new()),
+        ExecuteMsg::UpdateConfig {owner} => execute_update_config(deps, env, info, owner),
     
         //user funcs
         ExecuteMsg::AddGuardian { cw20_address, amount} => Ok(Response::new()),
@@ -49,7 +50,60 @@ pub fn execute(
 
 
 #[allow(clippy::too_many_arguments)]
-pub fn update_config(
+pub fn execute_add_guardian(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    cw20_address: String,
+    amount: Uint128,
+) -> StdResult<Response<TerraMsgWrapper>> {
+
+    //confirm cw20 is whitelisted
+    let state: State = STATE.load(deps.storage)?;
+    let cw20_address = deps.api.addr_validate(&cw20_address)?;
+
+    if !state.whitelisted_cw20s.contains(&cw20_address){
+        return Err(StdError::generic_err("Unauthorized"));
+    }
+
+    //send allowance message
+    let allowance_msg = CosmosMsg::Wasm(WasmMsg::Execute{
+        contract_addr: cw20_address.clone().into(),
+        funds: vec![],
+        msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance{
+            spender: env.contract.address.into(),
+            amount: amount,
+            expires: Some(Expiration::Never{}),
+        })?,
+    });
+
+    //update internal borrower guardian state
+    let mut borrower: Borrower = BORROWERS.load(deps.storage, info.sender)?;
+
+    let new_guardian: Guardian = Guardian{
+        address: cw20_address.clone(),
+        amount: amount,
+    };
+
+    let guardian_position = borrower
+        .guardians
+        .iter()
+        .position(|x| x.address == cw20_address);
+
+    if let Some(guardian_position) = guardian_position{
+        borrower.guardians.remove(guardian_position);
+    }
+
+    borrower.guardians.push(new_guardian);
+
+    BORROWERS.save(deps.storage, cw20_address, &borrower)?;
+
+    Ok(Response::new().add_attributes(vec![("action", "update_config")]).add_message(allowance_msg))
+}
+
+
+#[allow(clippy::too_many_arguments)]
+pub fn execute_update_config(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
@@ -89,9 +143,9 @@ pub fn execute_whitelist_cw20(
 
     //check if address already whitelisted
     let mut state: State = STATE.load(deps.storage)?;
-    let cw20_address_check = state.whitelisted_cw20s.iter().find(|&x| x == &cw20_address);
+    let cw20_address_check = state.whitelisted_cw20s.iter().any(|x| x == &cw20_address);
 
-    if cw20_address_check.is_none(){
+    if !cw20_address_check{
         state.whitelisted_cw20s.push(cw20_address);
         STATE.save(deps.storage, &state);
     }

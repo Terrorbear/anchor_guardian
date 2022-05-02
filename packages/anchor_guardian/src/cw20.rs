@@ -1,9 +1,8 @@
-use cosmwasm_std::{Binary, Decimal, Uint128};
+use cosmwasm_std::{Binary, Decimal, Uint128, Timestamp};
 use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::fmt;
-use cw0::Expiration;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
@@ -38,3 +37,13 @@ pub struct ConfigResponse {
     pub owner: String,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum Expiration {
+    /// AtHeight will expire when `env.block.height` >= height
+    AtHeight(u64),
+    /// AtTime will expire when `env.block.time` >= time
+    AtTime(Timestamp),
+    /// Never will never expire. Used to express the empty variant
+    Never {},
+}

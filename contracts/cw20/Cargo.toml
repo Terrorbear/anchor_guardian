@@ -48,7 +48,6 @@ thiserror = { version = "1.0.20" }
 hex = "0.4"
 cosmwasm-bignumber = "2.2.0"
 cw20-base = { version = "0.8", features = ["library"] }
-cw0 = "0.9.1"
 
 [dev-dependencies]
 cosmwasm-schema = "0.16.0"
