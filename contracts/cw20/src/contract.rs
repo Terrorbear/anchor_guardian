@@ -6,8 +6,7 @@ use cosmwasm_std::{
     WasmMsg, CosmosMsg, WasmQuery, QueryRequest, Coin, BankMsg
 };
 use cosmwasm_bignumber::{Decimal256, Uint256};
-use std::iter::zip;
-use anchor_guardian::cw20::{ExecuteMsg, InstantiateMsg, QueryMsg, ConfigResponse};
+use anchor_guardian::cw20::{ExecuteMsg, InstantiateMsg, QueryMsg, ConfigResponse, RepayStable};
 use cw20::{Cw20ExecuteMsg, Expiration};
 use crate::state::{CONFIG, STATE, BORROWERS, Config, State, Borrower, Guardian};
 use terra_cosmwasm::TerraMsgWrapper;
@@ -138,9 +137,9 @@ pub fn execute_liquidate_collateral(
 
     //calculate liquidation value to properly incentivize liquidator
     let mut liquidation_value: Uint256 = Uint256::zero();
-    for collateral in zip(liquidation_amount.collaterals, prices){
+    for collateral in liquidation_amount.collaterals.iter().zip(prices.iter()){
         let collateral_amount = collateral.0.1;
-        let price = collateral.1;
+        let price = *collateral.1;
 
         liquidation_value += collateral_amount * price;
     }
@@ -206,14 +205,16 @@ pub fn execute_liquidate_collateral(
             })?
         }));
     } else {
+        //cannot repay on behalf of another account
+        //must use a smart contract wallet with proper exposed execute message
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute{
-            contract_addr: config.anchor_market_contract.into(),
+            contract_addr: address.into(),
             funds: vec![
                 Coin{
                     denom: String::from("uusd"),
                     amount: repayment_amount,
                 }],
-            msg: to_binary(&MarketExecuteMsg::RepayStable{})?,
+            msg: to_binary(&RepayStable{amount: repayment_amount})?,
         }));
 
         messages.push(CosmosMsg::Bank(BankMsg::Send{
@@ -283,7 +284,7 @@ pub fn execute_add_guardian(
 
     BORROWERS.save(deps.storage, info.sender, &borrower)?;
 
-    Ok(Response::new().add_attributes(vec![("action", "update_config")]).add_message(allowance_msg))
+    Ok(Response::new().add_attributes(vec![("action", "add_guardian")]).add_message(allowance_msg))
 }
 
 
@@ -333,7 +334,7 @@ pub fn execute_whitelist_cw20(
         STATE.save(deps.storage, &state)?;
     }
 
-    Ok(Response::new().add_attributes(vec![("action", "update_config")]))
+    Ok(Response::new().add_attributes(vec![("action", "whitelist_cw20")]))
 }
 
 

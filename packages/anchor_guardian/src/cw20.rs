@@ -39,3 +39,9 @@ pub enum QueryMsg {
 pub struct ConfigResponse {
     pub owner: String,
 }
+
+//smart wallet messages
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema)]
+pub struct RepayStable {
+    pub amount: Uint128,
+}
