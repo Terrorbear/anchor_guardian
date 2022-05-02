@@ -3,7 +3,7 @@ use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     from_binary, to_binary, Binary, Decimal, Deps, DepsMut, Env,
     MessageInfo, Response, StdError, StdResult, Uint128, Addr,
-    WasmMsg, CosmosMsg, WasmQuery, QueryRequest
+    WasmMsg, CosmosMsg, WasmQuery, QueryRequest, Coin, BankMsg
 };
 use cosmwasm_bignumber::{Decimal256, Uint256};
 use std::iter::zip;
@@ -13,7 +13,7 @@ use crate::state::{CONFIG, STATE, BORROWERS, Config, State, Borrower, Guardian};
 use terra_cosmwasm::TerraMsgWrapper;
 use moneymarket::{
     overseer::{QueryMsg as OverseerQueryMsg, BorrowLimitResponse, CollateralsResponse, ConfigResponse as OverseerConfigResponse, ExecuteMsg as OverseerExecuteMsg},
-    market::{QueryMsg as MarketQueryMsg, BorrowerInfoResponse},
+    market::{QueryMsg as MarketQueryMsg, BorrowerInfoResponse, ExecuteMsg as MarketExecuteMsg},
     liquidation::{QueryMsg as LiquidationQueryMsg, LiquidationAmountResponse},
     oracle::PriceResponse,
     tokens::{TokensHuman, TokenHuman},
@@ -68,8 +68,6 @@ pub fn execute(
 }
 
 
-
-
 #[allow(clippy::too_many_arguments)]
 pub fn execute_liquidate_collateral(
     deps: DepsMut,
@@ -85,7 +83,7 @@ pub fn execute_liquidate_collateral(
 
     //fetch loan state
     let borrower_loan: BorrowerInfoResponse = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart{
-        contract_addr: config.anchor_market_contract.into(),
+        contract_addr: config.anchor_market_contract.clone().into(),
         msg: to_binary(&MarketQueryMsg::BorrowerInfo{
             borrower: borrower_addr.clone().into(),
             block_height: Some(env.block.height)
@@ -155,7 +153,9 @@ pub fn execute_liquidate_collateral(
     //calc UST value of guardians via astroport pools
     
     let ask_amount: Uint256 = liquidator_fee + borrower_loan.loan_amount - borrower_limit.borrow_limit;
-    let mut ask_amount: Uint128 = ask_amount.into();
+    let ask_amount: Uint128 = ask_amount.into();
+    let repayment_amount: Uint128 = (borrower_loan.loan_amount - borrower_limit.borrow_limit).into();
+    let mut ask_amount_left: Uint128 = ask_amount;
 
     //fetch guardians
     let borrower: Borrower = query_guardians(deps.as_ref(), address.clone())?;
@@ -169,7 +169,7 @@ pub fn execute_liquidate_collateral(
             msg: to_binary(&PairQueryMsg::ReverseSimulation{
                 ask_asset: Asset{
                     info: AssetInfo::NativeToken{denom: String::from("uusd")},
-                    amount: ask_amount,
+                    amount: ask_amount_left,
                 },
             })?,
         }))?;
@@ -190,7 +190,7 @@ pub fn execute_liquidate_collateral(
 
         messages.push(swap_msg);
 
-        ask_amount = ask_amount - min(guardian_quantity_required.offer_amount, guardian.amount);
+        ask_amount_left = ask_amount_left - min(guardian_quantity_required.offer_amount, guardian.amount);
 
         if ask_amount <= Uint128::zero(){
             break;
@@ -198,7 +198,7 @@ pub fn execute_liquidate_collateral(
     }
 
     //if still in liquidation state, call normal anchor liquidation
-    if ask_amount > Uint128::zero(){
+    if ask_amount_left > Uint128::zero(){
         messages = vec![];
 
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute{
@@ -208,9 +208,29 @@ pub fn execute_liquidate_collateral(
                 borrower: address.into(),
             })?
         }));
+    } else {
+        messages.push(CosmosMsg::Wasm(WasmMsg::Execute{
+            contract_addr: config.anchor_market_contract.into(),
+            funds: vec![
+                Coin{
+                    denom: String::from("uusd"),
+                    amount: repayment_amount,
+                }],
+            msg: to_binary(&MarketExecuteMsg::RepayStable{})?,
+        }));
+
+        messages.push(CosmosMsg::Bank(BankMsg::Send{
+            to_address: info.sender.into(),
+            amount: vec![
+                Coin{
+                    denom: String::from("uusd"),
+                    amount: liquidator_fee.into(),
+                }
+            ]
+        }));
     }
 
-    Ok(Response::new().add_attributes(vec![("action", "update_config")]).add_messages(messages))
+    Ok(Response::new().add_attributes(vec![("action", "liquidate_collateral")]).add_messages(messages))
 }
 
 
