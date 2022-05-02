@@ -1,7 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    from_binary, to_binary, Binary, Decimal, Deps, DepsMut, Env,
+    to_binary, Binary, Deps, DepsMut, Env,
     MessageInfo, Response, StdError, StdResult, Uint128, Addr,
     WasmMsg, CosmosMsg, WasmQuery, QueryRequest, Coin, BankMsg
 };
@@ -16,7 +16,6 @@ use moneymarket::{
     market::{QueryMsg as MarketQueryMsg, BorrowerInfoResponse, ExecuteMsg as MarketExecuteMsg},
     liquidation::{QueryMsg as LiquidationQueryMsg, LiquidationAmountResponse},
     oracle::PriceResponse,
-    tokens::{TokensHuman, TokenHuman},
     querier::{query_price, TimeConstraints},
 };
 use astroport::{
@@ -30,7 +29,7 @@ use std::cmp::min;
 pub fn instantiate(
     deps: DepsMut,
     _env: Env,
-    info: MessageInfo,
+    _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> StdResult<Response<TerraMsgWrapper>> {
 
@@ -56,14 +55,14 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> StdResult<Response<TerraMsgWrapper>> {
     match msg {
-        ExecuteMsg::WhitelistCw20{address} => execute_whitelist_cw20(deps, env, info, address),
-        ExecuteMsg::UpdateConfig {owner} => execute_update_config(deps, env, info, owner),
+        ExecuteMsg::WhitelistCw20{address} => execute_whitelist_cw20(deps, info, address),
+        ExecuteMsg::UpdateConfig {owner} => execute_update_config(deps, info, owner),
     
         //user funcs
         ExecuteMsg::AddGuardian { cw20_address, amount, pair_address} => execute_add_guardian(deps, env, info, cw20_address, amount, pair_address),
     
         //liquidator funcs
-        ExecuteMsg::LiquidateCollateral { address } => Ok(Response::new()),
+        ExecuteMsg::LiquidateCollateral { address } => execute_liquidate_collateral(deps, env, info, address),
     }
 }
 
@@ -120,7 +119,6 @@ pub fn execute_liquidate_collateral(
 
     for collateral in borrower_collateral.collaterals.clone(){
         let collateral_token = collateral.0.clone();
-        let collateral_amount = collateral.1;
 
         let price: PriceResponse = query_price(deps.as_ref(), config.anchor_oracle_contract.clone(), collateral_token,String::from("uusd"), Some(TimeConstraints{block_time: env.block.time.seconds(), valid_timeframe: overseer_config.price_timeframe}))?;
 
@@ -141,7 +139,6 @@ pub fn execute_liquidate_collateral(
     //calculate liquidation value to properly incentivize liquidator
     let mut liquidation_value: Uint256 = Uint256::zero();
     for collateral in zip(liquidation_amount.collaterals, prices){
-        let collateral_token = collateral.0.0.clone();
         let collateral_amount = collateral.0.1;
         let price = collateral.1;
 
@@ -293,7 +290,6 @@ pub fn execute_add_guardian(
 #[allow(clippy::too_many_arguments)]
 pub fn execute_update_config(
     deps: DepsMut,
-    env: Env,
     info: MessageInfo,
     owner: String,
 ) -> StdResult<Response<TerraMsgWrapper>> {
@@ -315,7 +311,6 @@ pub fn execute_update_config(
 #[allow(clippy::too_many_arguments)]
 pub fn execute_whitelist_cw20(
     deps: DepsMut,
-    env: Env,
     info: MessageInfo,
     address: String,
 ) -> StdResult<Response<TerraMsgWrapper>> {
@@ -335,7 +330,7 @@ pub fn execute_whitelist_cw20(
 
     if !cw20_address_check{
         state.whitelisted_cw20s.push(cw20_address);
-        STATE.save(deps.storage, &state);
+        STATE.save(deps.storage, &state)?;
     }
 
     Ok(Response::new().add_attributes(vec![("action", "update_config")]))
