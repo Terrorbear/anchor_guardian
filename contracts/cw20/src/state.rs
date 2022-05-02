@@ -11,6 +11,11 @@ pub const CONFIG: Item<Config> = Item::new("\u{0}\u{6}config");
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
     pub owner: Addr,
+    pub anchor_market_contract: Addr,
+    pub anchor_overseer_contract: Addr,
+    pub anchor_liquidation_contract: Addr,
+    pub anchor_oracle_contract: Addr,
+    pub liquidator_fee: Decimal,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -27,4 +32,5 @@ pub struct Borrower {
 pub struct Guardian {
     pub address: Addr,
     pub amount: Uint128,
+    pub pair_address: Addr, //this is the astro pair where the guardian will be swapped to ust
 }
