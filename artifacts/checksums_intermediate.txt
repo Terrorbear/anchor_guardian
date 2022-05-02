@@ -1,1 +1,1 @@
-9b9238264c967f4de953d0f020dcb4fa621c061efea7fe74f48ef01daf54d1a9  target/wasm32-unknown-unknown/release/anchor_guardian_cw20.wasm
+ebb93f3ede07b11c3fdd3296be49561c1e040b48cb44b4c5829f9b8e18327af1  target/wasm32-unknown-unknown/release/anchor_guardian_cw20.wasm

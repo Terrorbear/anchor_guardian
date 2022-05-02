@@ -38,6 +38,11 @@ pub enum QueryMsg {
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
     pub owner: String,
+    pub anchor_market_contract: String,
+    pub anchor_overseer_contract: String,
+    pub anchor_liquidation_contract: String,
+    pub anchor_oracle_contract: String,
+    pub liquidator_fee: Decimal,
 }
 
 //smart wallet messages

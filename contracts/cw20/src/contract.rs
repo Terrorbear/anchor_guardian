@@ -351,6 +351,11 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
     Ok(ConfigResponse {
         owner: config.owner.into(),
+        anchor_market_contract: config.anchor_market_contract.into(),
+        anchor_overseer_contract: config.anchor_overseer_contract.into(),
+        anchor_liquidation_contract: config.anchor_liquidation_contract.into(),
+        anchor_oracle_contract: config.anchor_oracle_contract.into(),
+        liquidator_fee: config.liquidator_fee,
     })
   }
   
