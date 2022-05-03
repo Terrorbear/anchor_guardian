@@ -22,7 +22,7 @@ pub enum ExecuteMsg {
 
     //user funcs
     //give guardian contract spend allowance to dump/payoff anchor loan
-    AddGuardian { cw20_address: String, amount: Uint128, pair_address: String},
+    AddGuardian { cw20_address: String, pair_address: String},
     
     //liquidator funcs
     LiquidateCollateral { address: String },

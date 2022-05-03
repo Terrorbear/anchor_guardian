@@ -31,6 +31,5 @@ pub struct Borrower {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Guardian {
     pub address: Addr,
-    pub amount: Uint128,
     pub pair_address: Addr, //this is the astro pair where the guardian will be swapped to ust
 }

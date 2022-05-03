@@ -7,7 +7,7 @@ use cosmwasm_std::{
 };
 use cosmwasm_bignumber::{Decimal256, Uint256};
 use anchor_guardian::cw20::{ExecuteMsg, InstantiateMsg, QueryMsg, ConfigResponse, RepayStable};
-use cw20::{Cw20ExecuteMsg, Expiration};
+use cw20::{Cw20ExecuteMsg, Expiration, Cw20QueryMsg, AllowanceResponse};
 use crate::state::{CONFIG, STATE, BORROWERS, Config, State, Borrower, Guardian};
 use terra_cosmwasm::TerraMsgWrapper;
 use moneymarket::{
@@ -63,7 +63,7 @@ pub fn execute(
         ExecuteMsg::UpdateConfig {owner} => execute_update_config(deps, info, owner),
     
         //user funcs
-        ExecuteMsg::AddGuardian { cw20_address, amount, pair_address} => execute_add_guardian(deps, env, info, cw20_address, amount, pair_address),
+        ExecuteMsg::AddGuardian { cw20_address, pair_address} => execute_add_guardian(deps, env, info, cw20_address, pair_address),
     
         //liquidator funcs
         ExecuteMsg::LiquidateCollateral { address } => execute_liquidate_collateral(deps, env, info, address),
@@ -175,13 +175,21 @@ pub fn execute_liquidate_collateral(
             })?,
         }))?;
 
+        let guardian_allowance: AllowanceResponse = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart{
+            contract_addr: guardian.address.clone().into(),
+            msg: to_binary(&Cw20QueryMsg::Allowance{
+                owner: address.clone().into(),
+                spender: env.contract.address.clone().into(),
+            })?
+        }))?;
+
         let swap_msg = CosmosMsg::Wasm(WasmMsg::Execute{
             contract_addr: guardian.pair_address.clone().into(),
             funds: vec![],
             msg: to_binary(&PairExecuteMsg::Swap{
                 offer_asset: Asset{
                     info: AssetInfo::Token{contract_addr: guardian.address},
-                    amount: min(guardian_quantity_required.offer_amount, guardian.amount),
+                    amount: min(guardian_quantity_required.offer_amount, guardian_allowance.allowance),
                 },
                 belief_price: None,
                 max_spread: None,
@@ -191,7 +199,7 @@ pub fn execute_liquidate_collateral(
 
         messages.push(swap_msg);
 
-        ask_amount_left = ask_amount_left - min(guardian_quantity_required.offer_amount, guardian.amount);
+        ask_amount_left = ask_amount_left - min(guardian_quantity_required.offer_amount, guardian_allowance.allowance);
 
         if ask_amount <= Uint128::zero(){
             break;
@@ -243,7 +251,6 @@ pub fn execute_add_guardian(
     env: Env,
     info: MessageInfo,
     cw20_address: String,
-    amount: Uint128,
     pair_address: String,
 ) -> StdResult<Response<TerraMsgWrapper>> {
 
@@ -256,17 +263,6 @@ pub fn execute_add_guardian(
         return Err(StdError::generic_err("Unauthorized"));
     }
 
-    //send allowance message
-    let allowance_msg = CosmosMsg::Wasm(WasmMsg::Execute{
-        contract_addr: cw20_address.clone().into(),
-        funds: vec![],
-        msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance{
-            spender: env.contract.address.into(),
-            amount: amount,
-            expires: Some(Expiration::Never{}),
-        })?,
-    });
-
     //update internal borrower guardian state
     let mut borrower: Borrower = BORROWERS.load(deps.storage, info.sender.clone()).unwrap_or(Borrower{
         guardians: vec![]
@@ -274,7 +270,6 @@ pub fn execute_add_guardian(
 
     let new_guardian: Guardian = Guardian{
         address: cw20_address.clone(),
-        amount: amount,
         pair_address: pair_address,
     };
 
@@ -291,7 +286,7 @@ pub fn execute_add_guardian(
 
     BORROWERS.save(deps.storage, info.sender, &borrower)?;
 
-    Ok(Response::new().add_attributes(vec![("action", "add_guardian")]).add_message(allowance_msg))
+    Ok(Response::new().add_attributes(vec![("action", "add_guardian")]))
 }
 
 
