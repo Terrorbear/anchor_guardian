@@ -441,7 +441,9 @@ result = execute_msg(pair_address, message, wallet2, terra, coins)
 
 #add whitelist shitcoin
 message = {
-  "whitelist_cw20": shitcoin_address
+  "whitelist_cw20": {
+    "address": shitcoin_address
+  }
 }
 
 whitelist_result = execute_msg(guardian_address, message, wallet1, terra)

@@ -41,6 +41,11 @@ pub fn instantiate(
         liquidator_fee: msg.liquidator_fee,
     };
 
+    let state = State{
+        whitelisted_cw20s: vec![],
+    };
+
+    STATE.save(deps.storage, &state)?;
     CONFIG.save(deps.storage, &config)?;
 
     Ok(Response::default())
@@ -263,7 +268,9 @@ pub fn execute_add_guardian(
     });
 
     //update internal borrower guardian state
-    let mut borrower: Borrower = BORROWERS.load(deps.storage, info.sender.clone())?;
+    let mut borrower: Borrower = BORROWERS.load(deps.storage, info.sender.clone()).unwrap_or(Borrower{
+        guardians: vec![]
+    });
 
     let new_guardian: Guardian = Guardian{
         address: cw20_address.clone(),
@@ -327,6 +334,9 @@ pub fn execute_whitelist_cw20(
 
     //check if address already whitelisted
     let mut state: State = STATE.load(deps.storage)?;
+
+
+
     let cw20_address_check = state.whitelisted_cw20s.iter().any(|x| x == &cw20_address);
 
     if !cw20_address_check{
