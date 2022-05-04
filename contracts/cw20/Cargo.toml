@@ -49,6 +49,8 @@ hex = "0.4"
 cosmwasm-bignumber = "2.2.0"
 moneymarket = "0.3.0"
 astroport = "1.0.1"
+smartwallet= { path = "../../packages/smartwallet", default-features = false, version = "0.2.0"}
+
 
 [dev-dependencies]
 cosmwasm-schema = "0.16.0"

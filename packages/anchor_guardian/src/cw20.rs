@@ -1,4 +1,4 @@
-use cosmwasm_std::{Decimal, Uint128};
+use cosmwasm_std::Decimal;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -43,10 +43,4 @@ pub struct ConfigResponse {
     pub anchor_liquidation_contract: String,
     pub anchor_oracle_contract: String,
     pub liquidator_fee: Decimal,
-}
-
-//smart wallet messages
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema)]
-pub struct RepayStable {
-    pub amount: Uint128,
 }

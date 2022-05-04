@@ -6,7 +6,7 @@ use cosmwasm_std::{
     WasmMsg, CosmosMsg, WasmQuery, QueryRequest, Coin, BankMsg
 };
 use cosmwasm_bignumber::{Decimal256, Uint256};
-use anchor_guardian::cw20::{ExecuteMsg, InstantiateMsg, QueryMsg, ConfigResponse, RepayStable};
+use anchor_guardian::cw20::{ExecuteMsg, InstantiateMsg, QueryMsg, ConfigResponse};
 use cw20::{Cw20QueryMsg, AllowanceResponse, Cw20ExecuteMsg};
 use crate::state::{CONFIG, STATE, BORROWERS, Config, State, Borrower, Guardian};
 use terra_cosmwasm::TerraMsgWrapper;
@@ -22,6 +22,7 @@ use astroport::{
     asset::{Asset, AssetInfo},
 };
 use std::cmp::min;
+use smartwallet::wallet::ExecuteMsg as SmartWalletExecuteMsg;
 
 const GUARDIAN_BUFFER: u64 = 10000000u64;
 
@@ -269,7 +270,7 @@ pub fn execute_liquidate_collateral(
                     denom: String::from("uusd"),
                     amount: repayment_amount,
                 }],
-            msg: to_binary(&RepayStable{amount: repayment_amount})?,
+            msg: to_binary(&SmartWalletExecuteMsg::RepayStable{amount: repayment_amount})?,
         }));
         
 
