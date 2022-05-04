@@ -7,7 +7,7 @@ use cosmwasm_std::{
 };
 use cosmwasm_bignumber::{Decimal256, Uint256};
 use anchor_guardian::cw20::{ExecuteMsg, InstantiateMsg, QueryMsg, ConfigResponse, RepayStable};
-use cw20::{Cw20ExecuteMsg, Expiration, Cw20QueryMsg, AllowanceResponse};
+use cw20::{Cw20QueryMsg, AllowanceResponse};
 use crate::state::{CONFIG, STATE, BORROWERS, Config, State, Borrower, Guardian};
 use terra_cosmwasm::TerraMsgWrapper;
 use moneymarket::{
@@ -18,7 +18,7 @@ use moneymarket::{
     querier::{query_price, TimeConstraints},
 };
 use astroport::{
-    pair::{QueryMsg as PairQueryMsg, ExecuteMsg as PairExecuteMsg, ReverseSimulationResponse},
+    pair::{QueryMsg as PairQueryMsg, ExecuteMsg as PairExecuteMsg, ReverseSimulationResponse, SimulationResponse},
     asset::{Asset, AssetInfo},
 };
 use std::cmp::min;
@@ -63,7 +63,7 @@ pub fn execute(
         ExecuteMsg::UpdateConfig {owner} => execute_update_config(deps, info, owner),
     
         //user funcs
-        ExecuteMsg::AddGuardian { cw20_address, pair_address} => execute_add_guardian(deps, env, info, cw20_address, pair_address),
+        ExecuteMsg::AddGuardian { cw20_address, pair_address} => execute_add_guardian(deps, info, cw20_address, pair_address),
     
         //liquidator funcs
         ExecuteMsg::LiquidateCollateral { address } => execute_liquidate_collateral(deps, env, info, address),
@@ -164,7 +164,15 @@ pub fn execute_liquidate_collateral(
     //execute swaps
     let mut messages = vec![];
     for guardian in borrower.guardians{
-        
+
+        let guardian_allowance: AllowanceResponse = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart{
+            contract_addr: guardian.address.clone().into(),
+            msg: to_binary(&Cw20QueryMsg::Allowance{
+                owner: address.clone().into(),
+                spender: env.contract.address.clone().into(),
+            })?
+        }))?;
+
         let guardian_quantity_required: ReverseSimulationResponse = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart{
             contract_addr: guardian.pair_address.clone().into(),
             msg: to_binary(&PairQueryMsg::ReverseSimulation{
@@ -175,11 +183,15 @@ pub fn execute_liquidate_collateral(
             })?,
         }))?;
 
-        let guardian_allowance: AllowanceResponse = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart{
-            contract_addr: guardian.address.clone().into(),
-            msg: to_binary(&Cw20QueryMsg::Allowance{
-                owner: address.clone().into(),
-                spender: env.contract.address.clone().into(),
+        let guardian_offer_amount =  min(guardian_quantity_required.offer_amount, guardian_allowance.allowance);
+
+        let expected_ust: SimulationResponse = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart{
+            contract_addr: guardian.pair_address.clone().into(),
+            msg: to_binary(&PairQueryMsg::Simulation{
+                offer_asset: Asset{
+                    info: AssetInfo::Token{contract_addr: guardian.address.clone().into()},
+                    amount: guardian_offer_amount,
+                },
             })?
         }))?;
 
@@ -189,7 +201,7 @@ pub fn execute_liquidate_collateral(
             msg: to_binary(&PairExecuteMsg::Swap{
                 offer_asset: Asset{
                     info: AssetInfo::Token{contract_addr: guardian.address},
-                    amount: min(guardian_quantity_required.offer_amount, guardian_allowance.allowance),
+                    amount: guardian_offer_amount,
                 },
                 belief_price: None,
                 max_spread: None,
@@ -199,7 +211,7 @@ pub fn execute_liquidate_collateral(
 
         messages.push(swap_msg);
 
-        ask_amount_left = ask_amount_left - min(guardian_quantity_required.offer_amount, guardian_allowance.allowance);
+        ask_amount_left = ask_amount_left - expected_ust.return_amount;
 
         if ask_amount <= Uint128::zero(){
             break;
@@ -248,7 +260,6 @@ pub fn execute_liquidate_collateral(
 #[allow(clippy::too_many_arguments)]
 pub fn execute_add_guardian(
     deps: DepsMut,
-    env: Env,
     info: MessageInfo,
     cw20_address: String,
     pair_address: String,

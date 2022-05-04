@@ -83,7 +83,7 @@ def execute_msg(address, msg, wallet, terra, coins=None):
   )
 
   #there is a fixed UST fee component now, so it's easier to pay fee in UST
-  tx = wallet.create_and_sign_tx(CreateTxOptions(msgs=[execute_msg], fee=Fee(2000000, "10000000uusd")))
+  tx = wallet.create_and_sign_tx(CreateTxOptions(msgs=[execute_msg], fee=Fee(5000000, "10000000uusd")))
   tx_result = terra.tx.broadcast(tx)
 
   return tx_result
@@ -300,7 +300,7 @@ deposit_result = execute_msg(market_contract, message, wallet1, terra, coins)
 message = {
   "feed_price":{
     "prices":[
-      [bluna_contract, "100.00"]
+      [bluna_contract, "150.00"]
     ]
   }
 }
