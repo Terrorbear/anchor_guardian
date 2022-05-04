@@ -280,11 +280,8 @@ message = {
 
 result = execute_msg(cw3_address, message, wallet3, terra)
 proposal_id = int(result.logs[0].events_by_type["wasm"]["proposal_id"][0])
-
 vote_result = execute_msg(cw3_address, {"vote":{"proposal_id":proposal_id, "vote": "yes"}}, wallet1, terra)
-
 execute_result = execute_msg(cw3_address, {"execute":{"proposal_id":proposal_id}}, wallet2, terra)
-
 
 ################################################
 # deposit ust, update bluna oracle price, take out loan
@@ -361,7 +358,7 @@ execute_result = execute_msg(cw3_address, {"execute":{"proposal_id":proposal_id}
 # setup cw20 shitcoin as guardian 
 ################################################
 
-
+smart_wallet_shitcoin_allocation = 69000000
 
 #create cw20
 init_cw20 = {
@@ -371,7 +368,7 @@ init_cw20 = {
   "initial_balances":[
     {
       "address": smart_wallet_address,
-      "amount": "69000000",
+      "amount": str(smart_wallet_shitcoin_allocation),
     },
     {
       "address": wallet2.key.acc_address,
@@ -452,11 +449,9 @@ whitelist_result = execute_msg(guardian_address, message, wallet1, terra)
 guardian_core_msg = json.dumps({
   "add_guardian":{
     "cw20_address": shitcoin_address,
-    "amount": "69000000",
     "pair_address": pair_address
   }
 })
-
 guardian_msg = json.dumps({
   "execute":{
     "command":{
@@ -472,11 +467,44 @@ guardian_msg = json.dumps({
 })
 
 
+allowance_core_message = json.dumps({
+  "increase_allowance":{
+    "spender": guardian_address,
+    "amount": str(smart_wallet_shitcoin_allocation),
+  }
+})
+
+
+allowance_msg = json.dumps({
+  "execute":{
+    "command":{
+      "wasm":{
+        "execute":{
+          "contract_addr": shitcoin_address,
+          "funds": [],
+          "msg": base64.b64encode(allowance_core_message.encode("utf-8")).decode("utf-8"),
+        }
+      }
+    }
+  }
+})
+
 message = {
   "propose":{
     "title": "test",
     "description": "test69",
     "msgs":[
+
+      {
+        "wasm": {
+          "execute":{
+            "contract_addr": smart_wallet_address, 
+            "funds": [],
+            "msg": base64.b64encode(allowance_msg.encode("utf-8")).decode("utf-8"),
+          }
+        }
+      },
+
       {
         "wasm": {
           "execute":{
@@ -499,11 +527,47 @@ vote_result = execute_msg(cw3_address, {"vote":{"proposal_id":proposal_id, "vote
 execute_result = execute_msg(cw3_address, {"execute":{"proposal_id":proposal_id}}, wallet2, terra)
 
 
-guardian_result = execute_msg(guardian_address, message, )
-
 ################################################
 # reset oracle price, invoke guardian liquidation
 ################################################
+
+message = {
+  "feed_price":{
+    "prices":[
+      [bluna_contract, "75.00"]
+    ]
+  }
+}
+
+oracle_result = execute_msg(oracle_contract, message, wallet3, terra)
+
+message = {
+  "submit_bid":{
+    "collateral_token": bluna_contract,
+    "premium_slot": 5,
+  }
+}
+
+num_ust = 10000
+coins = Coins.from_str(f"{num_ust*DECIMALS}uusd")
+liquidation_bid_result = execute_msg(liquidation_contract, message, worker_wallet, terra, coins)
+
+message = {
+  "activate_bids":{
+    "collateral_token": bluna_contract,
+  }
+}
+
+activate_result = execute_msg(liquidation_contract, message, worker_wallet, terra)
+
+message = {
+  "liquidate_collateral": {
+    "address": smart_wallet_address
+  }
+}
+
+liquidation_result = execute_msg(guardian_address, message, wallet1, terra)
+
 
 wasm_msg = json.dumps({
             "upsert_hot":{
