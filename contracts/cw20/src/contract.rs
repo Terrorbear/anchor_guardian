@@ -7,7 +7,7 @@ use cosmwasm_std::{
 };
 use cosmwasm_bignumber::{Decimal256, Uint256};
 use anchor_guardian::cw20::{ExecuteMsg, InstantiateMsg, QueryMsg, ConfigResponse, RepayStable};
-use cw20::{Cw20QueryMsg, AllowanceResponse};
+use cw20::{Cw20QueryMsg, AllowanceResponse, Cw20ExecuteMsg};
 use crate::state::{CONFIG, STATE, BORROWERS, Config, State, Borrower, Guardian};
 use terra_cosmwasm::TerraMsgWrapper;
 use moneymarket::{
@@ -204,6 +204,19 @@ pub fn execute_liquidate_collateral(
                 },
             })?
         }))?;
+
+        //transfer in address's guardian, and swap to ust
+        let transfer_from_msg = CosmosMsg::Wasm(WasmMsg::Execute{
+            contract_addr: guardian.address.clone().into(),
+            funds: vec![],
+            msg: to_binary(&Cw20ExecuteMsg::TransferFrom{
+                owner: address.clone().into(),
+                recipient: env.contract.address.clone().into(),
+                amount: guardian_offer_amount,
+            })?
+        });
+
+        messages.push(transfer_from_msg);
 
         let swap_msg = CosmosMsg::Wasm(WasmMsg::Execute{
             contract_addr: guardian.pair_address.clone().into(),
