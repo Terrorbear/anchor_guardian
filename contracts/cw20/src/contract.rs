@@ -219,7 +219,7 @@ pub fn execute_liquidate_collateral(
     }
 
     //if still in liquidation state, call normal anchor liquidation
-    if ask_amount_left > Uint128::zero(){
+    if ask_amount_left >= Uint128::from(1000000000u64){
         messages = vec![];
 
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute{
