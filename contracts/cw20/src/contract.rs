@@ -18,7 +18,7 @@ use moneymarket::{
     querier::{query_price, TimeConstraints},
 };
 use astroport::{
-    pair::{QueryMsg as PairQueryMsg, ExecuteMsg as PairExecuteMsg, ReverseSimulationResponse, SimulationResponse},
+    pair::{QueryMsg as PairQueryMsg, ExecuteMsg as PairExecuteMsg, ReverseSimulationResponse, SimulationResponse, Cw20HookMsg as PairHookMsg},
     asset::{Asset, AssetInfo},
 };
 use std::cmp::min;
@@ -219,17 +219,17 @@ pub fn execute_liquidate_collateral(
         messages.push(transfer_from_msg);
 
         let swap_msg = CosmosMsg::Wasm(WasmMsg::Execute{
-            contract_addr: guardian.pair_address.clone().into(),
+            contract_addr: guardian.address.clone().into(),
             funds: vec![],
-            msg: to_binary(&PairExecuteMsg::Swap{
-                offer_asset: Asset{
-                    info: AssetInfo::Token{contract_addr: guardian.address},
-                    amount: guardian_offer_amount,
-                },
-                belief_price: None,
-                max_spread: None,
-                to: None,
-            })?,
+            msg: to_binary(&Cw20ExecuteMsg::Send{
+                contract: guardian.pair_address.clone().into(),
+                amount: guardian_offer_amount,
+                msg: to_binary(&PairHookMsg::Swap{
+                    belief_price: None,
+                    max_spread: None,
+                    to: None,
+                })?,
+            })?
         });
 
         messages.push(swap_msg);
@@ -269,7 +269,7 @@ pub fn execute_liquidate_collateral(
                 }],
             msg: to_binary(&RepayStable{amount: repayment_amount})?,
         }));
-        */
+        
 
         messages.push(CosmosMsg::Bank(BankMsg::Send{
             to_address: info.sender.into(),
@@ -280,6 +280,7 @@ pub fn execute_liquidate_collateral(
                 }
             ]
         }));
+        */
     }
 
     Ok(Response::new().add_attributes(attrs).add_messages(messages))
