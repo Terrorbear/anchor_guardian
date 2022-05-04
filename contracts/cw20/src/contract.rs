@@ -80,6 +80,7 @@ pub fn execute_liquidate_collateral(
 ) -> StdResult<Response<TerraMsgWrapper>> {
 
     let config: Config = CONFIG.load(deps.storage)?;
+    let mut attrs = vec![];
 
     //confirm valid address
     let borrower_addr: Addr = deps.api.addr_validate(&address)?;
@@ -93,13 +94,14 @@ pub fn execute_liquidate_collateral(
         })?,
     }))?;
 
+    attrs.push(("borrower_loan", borrower_loan.loan_amount.to_string()));
+
     let borrower_collateral: CollateralsResponse = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart{
         contract_addr: config.anchor_overseer_contract.clone().into(),
         msg: to_binary(&OverseerQueryMsg::Collaterals{
             borrower: borrower_addr.clone().into(),
         })?,
     }))?;
-
     let borrower_limit: BorrowLimitResponse = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart{
         contract_addr: config.anchor_overseer_contract.clone().into(),
         msg: to_binary(&OverseerQueryMsg::BorrowLimit{
@@ -107,6 +109,8 @@ pub fn execute_liquidate_collateral(
             block_time: Some(env.block.time.seconds()),
         })?,
     }))?;
+
+    attrs.push(("borrower_limit", borrower_limit.borrow_limit.to_string()));
 
     if borrower_loan.loan_amount < borrower_limit.borrow_limit {
         return Err(StdError::generic_err("collateral ratio is safe"));
@@ -139,7 +143,6 @@ pub fn execute_liquidate_collateral(
         })?,
     }))?;
 
-
     //calculate liquidation value to properly incentivize liquidator
     let mut liquidation_value: Uint256 = Uint256::zero();
     for collateral in liquidation_amount.collaterals.iter().zip(prices.iter()){
@@ -149,6 +152,8 @@ pub fn execute_liquidate_collateral(
         liquidation_value += collateral_amount * price;
     }
 
+    attrs.push(("liquidation_value", liquidation_value.to_string()));
+
     let liquidator_fee = liquidation_value * Decimal256::from(config.liquidator_fee);
 
     //calc UST value of guardians via astroport pools
@@ -157,6 +162,9 @@ pub fn execute_liquidate_collateral(
     let ask_amount: Uint128 = ask_amount.into();
     let repayment_amount: Uint128 = (borrower_loan.loan_amount - borrower_limit.borrow_limit).into();
     let mut ask_amount_left: Uint128 = ask_amount;
+
+    attrs.push(("ask_amount_init", ask_amount.to_string()));
+    attrs.push(("repayment_amount", repayment_amount.to_string()));
 
     //fetch guardians
     let borrower: Borrower = query_guardians(deps.as_ref(), address.clone())?;
@@ -185,6 +193,8 @@ pub fn execute_liquidate_collateral(
 
         let guardian_offer_amount =  min(guardian_quantity_required.offer_amount, guardian_allowance.allowance);
 
+        attrs.push(("guardian_offer_amount", guardian_offer_amount.to_string()));
+
         let expected_ust: SimulationResponse = deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart{
             contract_addr: guardian.pair_address.clone().into(),
             msg: to_binary(&PairQueryMsg::Simulation{
@@ -211,7 +221,11 @@ pub fn execute_liquidate_collateral(
 
         messages.push(swap_msg);
 
+        attrs.push(("expected_ust", expected_ust.return_amount.to_string()));
+
         ask_amount_left = ask_amount_left - expected_ust.return_amount;
+
+        attrs.push(("ask_amount_left", ask_amount_left.to_string()));
 
         if ask_amount <= Uint128::zero(){
             break;
@@ -253,7 +267,7 @@ pub fn execute_liquidate_collateral(
         }));
     }
 
-    Ok(Response::new().add_attributes(vec![("action", "liquidate_collateral")]).add_messages(messages))
+    Ok(Response::new().add_attributes(attrs).add_messages(messages))
 }
 
 
