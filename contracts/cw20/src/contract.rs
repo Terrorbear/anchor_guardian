@@ -246,7 +246,8 @@ pub fn execute_liquidate_collateral(
     } else {
         //cannot repay on behalf of another account
         //must use a smart contract wallet with proper exposed execute message
-        messages.push(CosmosMsg::Wasm(WasmMsg::Execute{
+        
+        /*messages.push(CosmosMsg::Wasm(WasmMsg::Execute{
             contract_addr: address.into(),
             funds: vec![
                 Coin{
@@ -255,6 +256,7 @@ pub fn execute_liquidate_collateral(
                 }],
             msg: to_binary(&RepayStable{amount: repayment_amount})?,
         }));
+        */
 
         messages.push(CosmosMsg::Bank(BankMsg::Send{
             to_address: info.sender.into(),

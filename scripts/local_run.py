@@ -83,7 +83,7 @@ def execute_msg(address, msg, wallet, terra, coins=None):
   )
 
   #there is a fixed UST fee component now, so it's easier to pay fee in UST
-  tx = wallet.create_and_sign_tx(CreateTxOptions(msgs=[execute_msg], fee=Fee(5000000, "10000000uusd")))
+  tx = wallet.create_and_sign_tx(CreateTxOptions(msgs=[execute_msg], fee=Fee(7000000, "10000000uusd")))
   tx_result = terra.tx.broadcast(tx)
 
   return tx_result
@@ -148,7 +148,14 @@ init_msg = {
         "gas_cooldown": 1000,
         "gas_tank_max": "100000000",
         "whitelisted_messages": [0, 1, 2],
-      }
+      },
+      {
+        "address": guardian_address,
+        "label": "guardian",
+        "gas_cooldown": 1000,
+        "gas_tank_max": "100000000",
+        "whitelisted_messages": [0, 1, 2],
+      },
     ],
     "whitelisted_contracts":[
       {"address": market_contract, "label": "anchor_market", "code_id": 	226},
@@ -170,6 +177,7 @@ smart_wallet_address = smart_wallet_result.logs[0].events_by_type["instantiate_c
 cw3_address = terra.wasm.contract_query(smart_wallet_address, {"config":{}})["cw3_address"]
 
 funding_result = bank_msg_send(smart_wallet_address, "1000000000uusd", wallet1, terra)
+
 
 ################################################
 # bond luna for bluna
@@ -358,7 +366,7 @@ execute_result = execute_msg(cw3_address, {"execute":{"proposal_id":proposal_id}
 # setup cw20 shitcoin as guardian 
 ################################################
 
-smart_wallet_shitcoin_allocation = 69000000
+smart_wallet_shitcoin_allocation = 6900000000
 
 #create cw20
 init_cw20 = {
@@ -572,11 +580,11 @@ liquidation_result = execute_msg(guardian_address, message, wallet1, terra)
 wasm_msg = json.dumps({
             "upsert_hot":{
               "hot_wallet": {
-                "address": wallet4.key.acc_address,
-                "label": "farmer",
+                "address": guardian_address,
+                "label": "guardian",
                 "gas_cooldown": 1000,
                 "gas_tank_max": "100000000",
-                "whitelisted_messages": [1],
+                "whitelisted_messages": [2],
               }
             }
 })
