@@ -23,6 +23,8 @@ use astroport::{
 };
 use std::cmp::min;
 
+const GUARDIAN_BUFFER: u64 = 10000000u64;
+
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -161,7 +163,7 @@ pub fn execute_liquidate_collateral(
     let ask_amount: Uint256 = liquidator_fee + borrower_loan.loan_amount - borrower_limit.borrow_limit;
     let ask_amount: Uint128 = ask_amount.into();
     let repayment_amount: Uint128 = (borrower_loan.loan_amount - borrower_limit.borrow_limit).into();
-    let mut ask_amount_left: Uint128 = ask_amount;
+    let mut ask_amount_left: Uint128 = ask_amount + Uint128::from(GUARDIAN_BUFFER);
 
     attrs.push(("ask_amount_init", ask_amount.to_string()));
     attrs.push(("repayment_amount", repayment_amount.to_string()));
@@ -260,7 +262,7 @@ pub fn execute_liquidate_collateral(
         //cannot repay on behalf of another account
         //must use a smart contract wallet with proper exposed execute message
         
-        /*messages.push(CosmosMsg::Wasm(WasmMsg::Execute{
+        messages.push(CosmosMsg::Wasm(WasmMsg::Execute{
             contract_addr: address.into(),
             funds: vec![
                 Coin{
@@ -280,7 +282,7 @@ pub fn execute_liquidate_collateral(
                 }
             ]
         }));
-        */
+        
     }
 
     Ok(Response::new().add_attributes(attrs).add_messages(messages))
