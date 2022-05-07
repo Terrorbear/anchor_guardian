@@ -576,39 +576,3 @@ message = {
 
 liquidation_result = execute_msg(guardian_address, message, wallet1, terra)
 
-
-wasm_msg = json.dumps({
-            "upsert_hot":{
-              "hot_wallet": {
-                "address": guardian_address,
-                "label": "guardian",
-                "gas_cooldown": 1000,
-                "gas_tank_max": "100000000",
-                "whitelisted_messages": [2],
-              }
-            }
-})
-
-message = {
-  "propose":{
-    "title": "test33",
-    "description": "test6933",
-    "msgs":[{
-        "wasm": {
-          "execute":{
-            "contract_addr": smart_wallet_address,
-            "funds": [],
-            "msg": base64.b64encode(wasm_msg.encode("utf-8")).decode("utf-8"),
-          }
-        }
-      }
-    ]
-  }
-}
-
-result = execute_msg(cw3_address, message, wallet3, terra)
-proposal_id = int(result.logs[0].events_by_type["wasm"]["proposal_id"][0])
-
-vote_result = execute_msg(cw3_address, {"vote":{"proposal_id":proposal_id, "vote": "yes"}}, wallet1, terra)
-
-execute_result = execute_msg(cw3_address, {"execute":{"proposal_id":proposal_id}}, wallet2, terra)
